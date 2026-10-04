@@ -368,7 +368,12 @@
       <!-- 產出之程式碼展示區塊 -->
       <div class="relative">
         <pre id="code-output" class="bg-slate-900 text-slate-200 font-mono text-[11px] sm:text-xs p-4 rounded-2xl overflow-x-auto max-h-56 leading-relaxed select-all border border-slate-800"></pre>
-        <div class="absolute top-2.5 right-2.5">
+        <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+          <!-- 下載 .user.js 檔案按鈕 (僅方案 A 顯示，點擊直接儲存檔案匯入 Userscripts) -->
+          <button id="btn-download-script" class="text-xs font-bold px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            <span id="download-btn-label">下載 .js</span>
+          </button>
           <!-- 複製按鈕 (支援 Clipboard API 與 execCommand 降級) -->
           <button id="btn-copy-code" class="text-xs font-bold px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
@@ -431,7 +436,9 @@
           <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
             <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>
             <div>
-              <strong class="text-slate-900 font-bold">貼上專屬代碼</strong>：點擊上方「方案 A」的<strong>複製代碼</strong>按鈕。打開 Userscripts App ➔ 點右上角「+」新增 ➔ 把代碼全部貼上 ➔ 按右上角儲存。
+              <strong class="text-slate-900 font-bold">取得專屬代碼（兩種方式皆可）</strong>：<br>
+              • <strong>方式 1（推薦快速）：</strong>點擊上方「<strong>下載 .js</strong>」直接下載 <code>.user.js</code> 腳本檔案，接著在 iPhone 檔案中分享至 Userscripts 或在 App 內點選匯入。<br>
+              • <strong>方式 2：</strong>點擊「<strong>複製代碼</strong>」按鈕。打開 Userscripts App ➔ 點右上角「+」新增 ➔ 把代碼全部貼上 ➔ 按右上角儲存。
             </div>
           </div>
           <div class="flex items-start gap-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900">
@@ -550,11 +557,13 @@
     const toggleAutosubmit = document.getElementById('toggle-autosubmit');
     const inputDelay = document.getElementById('input-delay');
 
-    // 程式碼顯示與複製節點
+    // 程式碼顯示、複製與下載節點
     const codeOutput = document.getElementById('code-output');
     const codeSummaryHint = document.getElementById('code-summary-hint');
     const btnCopyCode = document.getElementById('btn-copy-code');
     const copyBtnLabel = document.getElementById('copy-btn-label');
+    const btnDownloadScript = document.getElementById('btn-download-script');
+    const downloadBtnLabel = document.getElementById('download-btn-label');
 
     // 提示通知節點
     const iosToast = document.getElementById('ios-toast');
@@ -818,7 +827,48 @@
       }
 
       codeOutput.textContent = code;
+
+      // 根據當前分頁決定是否顯示「下載 .js」按鈕 (僅方案 A 具備獨立 Userscript 檔案價值)
+      if (appState.activeTab === 'tab-userscript') {
+        btnDownloadScript.classList.remove('hidden');
+      } else {
+        btnDownloadScript.classList.add('hidden');
+      }
     }
+
+    /* -------------------------------------------------------------------------- */
+    /* 下載 .user.js 腳本檔案功能 (供 Userscripts App 直接匯入)                     */
+    /* -------------------------------------------------------------------------- */
+    btnDownloadScript.addEventListener('click', () => {
+      const code = codeOutput.textContent;
+      const cleanName = (appState.name || 'sniper').trim().replace(/[/\\?%*:|"<>]/g, '');
+      const fileName = `google-form-sniper-${cleanName || 'auto'}.user.js`;
+
+      try {
+        const blob = new Blob([code], { type: 'application/javascript;charset=utf-8' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const tempLink = document.createElement('a');
+        tempLink.href = downloadUrl;
+        tempLink.download = fileName;
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        document.body.removeChild(tempLink);
+        URL.revokeObjectURL(downloadUrl);
+
+        // 視覺成功回饋
+        downloadBtnLabel.innerText = '已下載！';
+        btnDownloadScript.classList.remove('bg-indigo-600');
+        btnDownloadScript.classList.add('bg-emerald-600');
+        triggerToast(`已下載「${fileName}」，可開啟 Userscripts 匯入！`, '📥');
+        setTimeout(() => {
+          downloadBtnLabel.innerText = '下載 .js';
+          btnDownloadScript.classList.remove('bg-emerald-600');
+          btnDownloadScript.classList.add('bg-indigo-600');
+        }, 2000);
+      } catch (err) {
+        triggerToast('下載失敗，請直接使用複製代碼按鈕', '⚠️');
+      }
+    });
 
     /* -------------------------------------------------------------------------- */
     /* 複製到剪貼簿功能 (含現代 Clipboard API 與舊版 execCommand 降級)             */
