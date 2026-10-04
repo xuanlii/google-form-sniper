@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <!-- 響應式 Viewport 設定：針對行動裝置禁止手勢縮放，模擬原生 App 操控質感 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>排班填休秒殺神器 - Google Form iOS Sniper</title>
+
+  <!-- 引入 Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- 引入 Google Fonts (Inter) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind 擴充設定：包含 iOS 設計規範色彩與 Google 表單識別色 -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            // iOS 設計風格色系
+            ios: {
+              blue: '#007AFF',
+              green: '#34C759',
+              orange: '#FF9500',
+              red: '#FF3B30',
+              purple: '#AF52DE',
+              card: '#FFFFFF',
+              bg: '#F2F2F7',
+              border: '#E5E5EA'
+            },
+            // Google 表單經典紫配色
+            gform: {
+              purple: '#673AB7',
+              purpleDark: '#512DA8',
+              bg: '#EDE7F6',
+              card: '#FFFFFF',
+              border: '#DADCE0'
+            }
+          },
+          fontFamily: {
+            // 優先使用 Apple 系統黑體
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Inter', 'SF Pro Text', 'Helvetica Neue', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- 自定義樣式與動畫 -->
+  <style>
+    /* 移除 iOS 點擊灰色高亮，設定全域 box-sizing */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    body {
+      background-color: #F2F2F7;
+      color: #1C1C1E;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+      -webkit-font-smoothing: antialiased;
+    }
+    /* iOS 磨砂玻璃毛玻璃效果 (Frosted Glass / Glassmorphism) */
+    .glassmorphism {
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    /* iOS 風格開關切換器狀態樣式 */
+    .ios-switch:checked + .ios-switch-track {
+      background-color: #34C759;
+    }
+    .ios-switch:checked + .ios-switch-track .ios-switch-thumb {
+      transform: translateX(1.25rem);
+    }
+    /* 模擬表單欄位自動填入時的視覺閃爍回饋動畫 */
+    @keyframes highlightInput {
+      0% { background-color: rgba(103, 58, 183, 0.28); transform: scale(1.008); }
+      100% { background-color: #FFFFFF; transform: scale(1); }
+    }
+    .flash-fill {
+      animation: highlightInput 0.5s ease-out;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans pb-20 selection:bg-purple-200">
+
+  <!-- ========================================== -->
+  <!-- 頁首導航列 (Sticky Header) -->
+  <!-- ========================================== -->
+  <header class="sticky top-0 z-40 glassmorphism border-b border-slate-200/80 px-4 py-3">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2.5">
+        <!-- 應用圖示 -->
+        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-purple-500/25">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          </svg>
+        </div>
+        <!-- 標題與適用時機提示 -->
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-base font-bold text-slate-900 leading-tight">排班填休秒殺神器</h1>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">每月20號16:00專用</span>
+          </div>
+          <p class="text-[11px] text-slate-500">針對「姓名＋填休日期假別」雙欄位最佳化</p>
+        </div>
+      </div>
+      <!-- 快速跳轉至設定教學錨點 -->
+      <a href="#quick-guide" class="text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>設定教學</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- 主內容容器 (Main Container) -->
+  <!-- ========================================== -->
+  <main class="max-w-3xl mx-auto w-full px-4 pt-4 space-y-5 flex-1">
+
+    <!-- 概念說明卡片：解釋核心工作原理（按題號定位，連結換了也通用） -->
+    <div class="bg-gradient-to-r from-purple-600/10 via-indigo-600/10 to-blue-600/10 border border-purple-200/70 rounded-2xl p-3.5 flex items-start gap-3 shadow-xs">
+      <div class="p-2 bg-purple-600 text-white rounded-xl shrink-0 mt-0.5 shadow-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="text-xs text-slate-700 space-y-1">
+        <div class="font-bold text-slate-900 flex items-center gap-2">
+          <span>搶第一關鍵思維：連結每次不同也不怕！</span>
+        </div>
+        <p class="leading-relaxed text-slate-600">
+          此腳本只辨識 Google 表單的<strong>第 1 題（姓名）</strong>與<strong>第 2 題（填休內容）</strong>。只要時間一到點開新連結，腳本在 <strong>0.1 秒內自動完成填寫並送出</strong>，徹底避開手機慢慢打字的劣勢。
+        </p>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------ -->
+    <!-- 步驟 1：排班與個人資料配置區塊 -->
+    <!-- ------------------------------------------ -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-purple-600"></div>
+          <h2 class="text-sm font-bold text-slate-900 tracking-tight">步驟 1：確認本月填休資料</h2>
+        </div>
+        <span class="text-[11px] text-slate-400 font-medium">每個月20號前先在下方配好</span>
+      </div>
+
+      <!-- 欄位 1: 姓名輸入 -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+            第 1 題：姓名
+          </span>
+          <span class="text-[11px] text-purple-600 font-normal">已預設為本人</span>
+        </label>
+        <input type="text" id="input-name" value="鄭彩妙" class="w-full text-sm font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500 transition-all text-slate-900" placeholder="請輸入姓名">
+      </div>
+
+      <!-- 欄位 2: 填休日期與假別 (附智慧生成器) -->
+      <div class="space-y-2 pt-1">
+        <label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            第 2 題：填休日期與假別
+          </span>
+          <span class="text-[11px] text-emerald-600 font-medium">支援隨時自由手動修改</span>
+        </label>
+
+        <!-- 即時編輯框 (多行文字輸入) -->
+        <textarea id="input-schedule" rows="2" class="w-full text-sm font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500 transition-all text-slate-900 placeholder:text-slate-400" placeholder="例如：10/15-16休假、10/23休假、10/29-30休假">10/15-16休假、10/23休假、10/29-30休假</textarea>
+
+        <!-- 填休快選排班小工具 (點選快速產生排班字串，避免手動輸入標點錯誤) -->
+        <div class="bg-purple-50/50 border border-purple-100 rounded-2xl p-3 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-purple-900 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+              快速組裝小工具（免手打頓號）
+            </span>
+            <button id="btn-clear-schedule" class="text-[11px] text-red-500 hover:text-red-700 font-medium">清空重配</button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
+            <!-- 月份選擇 -->
+            <div class="sm:col-span-3 flex items-center gap-1.5">
+              <span class="text-slate-500 shrink-0 text-[11px]">月份:</span>
+              <select id="builder-month" class="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500">
+                <option value="10">10月</option>
+                <option value="11">11月</option>
+                <option value="12">12月</option>
+                <option value="1">1月</option>
+                <option value="2">2月</option>
+                <option value="3">3月</option>
+                <option value="4">4月</option>
+                <option value="5">5月</option>
+                <option value="6">6月</option>
+                <option value="7">7月</option>
+                <option value="8">8月</option>
+                <option value="9">9月</option>
+              </select>
+            </div>
+
+            <!-- 日期範圍選擇 -->
+            <div class="sm:col-span-5 flex items-center gap-1">
+              <span class="text-slate-500 shrink-0 text-[11px]">日:</span>
+              <input type="number" id="builder-start-day" min="1" max="31" placeholder="開始" class="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-center text-xs font-semibold focus:outline-none focus:border-purple-500">
+              <span class="text-slate-400 font-bold">-</span>
+              <input type="number" id="builder-end-day" min="1" max="31" placeholder="結束(選填)" class="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-center text-xs font-semibold focus:outline-none focus:border-purple-500">
+            </div>
+
+            <!-- 假別選取與加入按鈕 -->
+            <div class="sm:col-span-4 flex items-center gap-1.5">
+              <select id="builder-type" class="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-purple-500">
+                <option value="休假">休假</option>
+                <option value="特休">特休</option>
+                <option value="補休">補休</option>
+                <option value="事假">事假</option>
+                <option value="公假">公假</option>
+              </select>
+              <button id="btn-add-tag" class="shrink-0 bg-purple-600 hover:bg-purple-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 active:scale-95 shadow-xs">
+                加入
+              </button>
+            </div>
+          </div>
+
+          <!-- 已加入的標籤清單 (可單獨刪除) -->
+          <div id="schedule-tags-container" class="flex flex-wrap gap-1.5 pt-1">
+            <!-- 由 JavaScript 動態注入標籤元素 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 自動提交開關與延遲時間配置 -->
+      <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <!-- 自動提交 Toggle 開關 -->
+        <div class="flex items-center justify-between w-full sm:w-auto gap-4">
+          <div>
+            <div class="text-xs font-bold text-slate-900">填完自動點「提交」</div>
+            <div class="text-[11px] text-slate-500">省去手指滾動到底部點擊的時間</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="toggle-autosubmit" checked class="sr-only ios-switch">
+            <div class="ios-switch-track w-11 h-6 bg-slate-300 rounded-full transition-colors duration-200 ease-in-out relative">
+              <div class="ios-switch-thumb w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-200 ease-in-out absolute top-0.5 left-0.5"></div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 延遲毫秒數設定 (避免表單前端驗證尚未觸發就被送出) -->
+        <div class="flex items-center justify-end w-full sm:w-auto gap-2">
+          <span class="text-xs text-slate-500">送出安全延遲：</span>
+          <div class="flex items-center gap-1">
+            <input type="number" id="input-delay" value="100" min="40" max="1000" step="20" class="w-16 text-center text-xs font-mono font-bold py-1 px-2 rounded-lg border border-slate-200 bg-slate-50">
+            <span class="text-xs text-slate-500 font-mono">毫秒(ms)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------ -->
+    <!-- 步驟 2：手機模擬實測沙盒 (驗證0.1秒秒殺效果) -->
+    <!-- ------------------------------------------ -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+          <h2 class="text-sm font-bold text-slate-900 tracking-tight">步驟 2：手機模擬實測（親自感受 0.1 秒威力）</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btn-reset-sim" class="text-xs text-slate-500 hover:text-slate-800 bg-slate-100 px-2.5 py-1 rounded-lg transition-colors">
+            清空重試
+          </button>
+          <button id="btn-run-sim" class="text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:opacity-95 active:scale-95 px-3.5 py-1.5 rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <span>⚡️ 一鍵執行秒殺</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 模擬 Google 表單容器 -->
+      <div class="bg-[#EDE7F6] p-3.5 sm:p-5 rounded-2xl border border-purple-200/80 relative overflow-hidden">
+        <!-- 頂部 Google Form 經典紫色標記條 -->
+        <div class="h-2.5 bg-[#673AB7] rounded-t-xl -mx-3.5 -mt-3.5 sm:-mx-5 sm:-mt-5 mb-3.5"></div>
+
+        <!-- 實時高精度計時浮動標籤 (顯示耗費秒數) -->
+        <div id="sim-timer-badge" class="hidden absolute top-4 right-4 bg-black/90 text-white font-mono text-[11px] px-3 py-1 rounded-full shadow-lg items-center gap-1.5 z-10 backdrop-blur-md">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+          <span>提交總耗時:</span>
+          <span id="sim-timer-val" class="font-bold text-amber-300">0.00</span>s
+        </div>
+
+        <!-- 表單標題區 -->
+        <div class="bg-white rounded-xl p-4 shadow-xs border border-slate-200/70 mb-3 space-y-1">
+          <h3 class="font-bold text-base text-slate-900">每月 20 號排班填休登記表 (模擬真實畫面)</h3>
+          <p class="text-xs text-slate-500">本模擬環境的題目架構與 Google 表單底層完全相同。</p>
+          <div class="text-[11px] text-red-500 font-semibold pt-1">* 表示必填問題</div>
+        </div>
+
+        <!-- 第 1 題模擬：姓名 -->
+        <div class="bg-white rounded-xl p-4 shadow-xs border border-slate-200/70 mb-3 space-y-2 transition-all" id="mock-box-1">
+          <div class="text-xs font-bold text-slate-900 flex items-center justify-between">
+            <span>1. 姓名 <span class="text-red-500">*</span></span>
+          </div>
+          <input type="text" id="sim-field-1" class="w-full text-xs px-3 py-2 border-b-2 border-slate-200 focus:border-[#673AB7] focus:outline-none transition-colors placeholder:text-slate-300 bg-transparent" placeholder="您的回答">
+        </div>
+
+        <!-- 第 2 題模擬：排班與假別 -->
+        <div class="bg-white rounded-xl p-4 shadow-xs border border-slate-200/70 mb-4 space-y-2 transition-all" id="mock-box-2">
+          <div class="text-xs font-bold text-slate-900 flex items-center justify-between">
+            <span>2. 填休日期與假別 <span class="text-red-500">*</span></span>
+          </div>
+          <textarea id="sim-field-2" rows="2" class="w-full text-xs px-3 py-2 border-b-2 border-slate-200 focus:border-[#673AB7] focus:outline-none transition-colors placeholder:text-slate-300 bg-transparent resize-none" placeholder="您的回答"></textarea>
+        </div>
+
+        <!-- 提交按鈕與狀態指示文字 -->
+        <div class="flex items-center justify-between pt-1">
+          <button id="sim-submit-btn" class="bg-[#673AB7] text-white text-xs font-bold px-6 py-2 rounded-lg shadow-sm hover:bg-[#5E35B1] active:scale-95 transition-all flex items-center gap-1.5">
+            <span>提交</span>
+          </button>
+          <span id="sim-status-indicator" class="text-xs font-medium text-slate-500">等待測試觸發...</span>
+        </div>
+
+        <!-- 成功提交 Google 畫面遮罩 (模擬 Google 表單提交後完成頁面) -->
+        <div id="sim-success-card" class="hidden absolute inset-0 bg-white/98 rounded-2xl p-6 flex flex-col items-center justify-center text-center z-20 backdrop-blur-sm transition-opacity">
+          <div class="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mb-2.5">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+          </div>
+          <h4 class="text-base font-bold text-slate-900 mb-1">已經收到您的回覆。</h4>
+          <p class="text-xs text-slate-500 mb-4">第一名入袋！真實表單也是以相同 0.1 秒光速自動完成填寫與提交。</p>
+          <button id="btn-retest-sim" class="text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-2 rounded-xl transition-colors">
+            再測試一次
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ------------------------------------------ -->
+    <!-- 步驟 3：程式碼生成與複製專區 -->
+    <!-- ------------------------------------------ -->
+    <section class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-3.5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-blue-600"></div>
+          <h2 class="text-sm font-bold text-slate-900 tracking-tight">步驟 3：複製你的客製化專屬代碼</h2>
+        </div>
+        <span class="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full">已同步當前排班</span>
+      </div>
+
+      <!-- 切換分頁 Tabs：方案 A (Userscript) / 方案 B (Bookmarklet) / 方案 C (替代文字) -->
+      <div class="flex bg-slate-100 p-1 rounded-2xl gap-1">
+        <button class="code-tab-btn flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all bg-white text-purple-700 shadow-xs" data-tab="tab-userscript">
+          方案 A：Safari 全自動外掛（0點擊・最強）
+        </button>
+        <button class="code-tab-btn flex-1 py-1.5 px-2 text-xs font-medium text-slate-600 rounded-xl transition-all hover:text-slate-900" data-tab="tab-bookmarklet">
+          方案 B：Safari 魔法書籤（一鍵點擊）
+        </button>
+        <button class="code-tab-btn flex-1 py-1.5 px-2 text-xs font-medium text-slate-600 rounded-xl transition-all hover:text-slate-900" data-tab="tab-textreplace">
+          方案 C：輸入法替代文字（免外掛）
+        </button>
+      </div>
+
+      <!-- 產出之程式碼展示區塊 -->
+      <div class="relative">
+        <pre id="code-output" class="bg-slate-900 text-slate-200 font-mono text-[11px] sm:text-xs p-4 rounded-2xl overflow-x-auto max-h-56 leading-relaxed select-all border border-slate-800"></pre>
+        <div class="absolute top-2.5 right-2.5">
+          <!-- 複製按鈕 (支援 Clipboard API 與 execCommand 降級) -->
+          <button id="btn-copy-code" class="text-xs font-bold px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl shadow-md active:scale-95 transition-all flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+            <span id="copy-btn-label">複製代碼</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 動態說明提示 (由 JavaScript 隨分頁更新) -->
+      <p id="code-summary-hint" class="text-[11px] text-slate-500 flex items-center gap-1.5 leading-relaxed">
+        <!-- JS動態更新 -->
+      </p>
+    </section>
+
+    <!-- ------------------------------------------ -->
+    <!-- 步驟 4：iPhone 圖文設定教學 -->
+    <!-- ------------------------------------------ -->
+    <section id="quick-guide" class="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+          <h2 class="text-sm font-bold text-slate-900 tracking-tight">iPhone 超詳細新手圖文設定教學</h2>
+        </div>
+        <span class="text-[11px] text-amber-700 bg-amber-50 font-bold px-2 py-0.5 rounded-full">一次設定，每月躺贏</span>
+      </div>
+
+      <!-- 教學分頁切換按鈕 -->
+      <div class="flex border-b border-slate-200 text-xs font-bold text-slate-500 gap-4 overflow-x-auto pb-1">
+        <button class="guide-tab-btn active py-1.5 border-b-2 border-purple-600 text-purple-600 shrink-0" data-target="guide-view-a">
+          教學 A：Userscripts 全自動搶單（推薦）
+        </button>
+        <button class="guide-tab-btn py-1.5 border-b-2 border-transparent hover:text-slate-800 shrink-0" data-target="guide-view-b">
+          教學 B：Safari 魔法書籤法
+        </button>
+        <button class="guide-tab-btn py-1.5 border-b-2 border-transparent hover:text-slate-800 shrink-0" data-target="guide-view-c">
+          教學 C：LINE 防翻車設定（必看）
+        </button>
+      </div>
+
+      <!-- 教學 A 內容：iOS Userscripts App 設定說明 -->
+      <div id="guide-view-a" class="guide-panel space-y-3">
+        <div class="p-3 bg-purple-50 rounded-2xl border border-purple-100 text-xs text-purple-950 leading-relaxed">
+          🏆 <strong>為什麼最強？</strong><br>
+          當天 16:00 收到表單網址直接在 Safari 開啟，<strong>你連點都不用點，畫面打開 0.1 秒自己填完送出！</strong>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-700">
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">1</span>
+            <div>
+              <strong class="text-slate-900 font-bold">下載外掛 App</strong>：在 App Store 搜尋下載「<strong>Userscripts</strong>」（黑色 <code>&lt;/&gt;</code> 圖示，完全免費無廣告）。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">2</span>
+            <div>
+              <strong class="text-slate-900 font-bold">開啟 Safari 權限</strong>：打開 iPhone「設定」➔ 往下滑找到「<strong>Safari 瀏覽器</strong>」➔「<strong>延伸功能</strong>」➔ 找到「Userscripts」並設定為<strong>開啟</strong>（權限勾選「在所有網站永遠允許」）。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-purple-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>
+            <div>
+              <strong class="text-slate-900 font-bold">貼上專屬代碼</strong>：點擊上方「方案 A」的<strong>複製代碼</strong>按鈕。打開 Userscripts App ➔ 點右上角「+」新增 ➔ 把代碼全部貼上 ➔ 按右上角儲存。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900">
+            <span class="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">4</span>
+            <div>
+              <strong class="font-bold">實戰 20 號 16:00</strong>：點開新的表單網址，雙手放開，腳本自動在 0.1 秒秒填送出！
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 教學 B 內容：Safari Bookmarklet 魔法書籤製作教學 -->
+      <div id="guide-view-b" class="guide-panel hidden space-y-3">
+        <div class="p-3 bg-blue-50 rounded-2xl border border-blue-100 text-xs text-blue-950 leading-relaxed">
+          ⚡️ <strong>免下載任何 App 的做法</strong><br>
+          把代碼存成 Safari 的書籤。當表單打開後，在網址列或書籤點一下，瞬間填滿並提交！
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-700">
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">1</span>
+            <div>
+              <strong class="text-slate-900 font-bold">先複製代碼</strong>：在上方切換到「方案 B：Safari 魔法書籤」，點擊「複製代碼」。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">2</span>
+            <div>
+              <strong class="text-slate-900 font-bold">建立一個新書籤</strong>：打開 iPhone 的 Safari，隨便打開一個網頁（例如 Google 首頁），點底部的<strong>分享按鈕 ⎋</strong> ➔ 選「加入書籤」，名稱改成「<code>111</code>」或「<code>⚡️秒填</code>」。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>
+            <div>
+              <strong class="text-slate-900 font-bold">替換網址</strong>：點 Safari 下方的「書本圖示」打開書籤頁 ➔ 找到「<code>111</code>」長按 ➔ 點「<strong>編輯</strong>」➔ 把原本的網址清空，貼上剛剛複製的整串代碼，按完成。
+            </div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">4</span>
+            <div>
+              <strong class="text-slate-900 font-bold">實戰操作</strong>：新表單點開後，點擊 Safari 網址列輸入「<code>111</code>」點一下，全部自動填完送出！
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 教學 C 內容：LINE Labs 預設瀏覽器開啟設定 (防翻車最關鍵步驟) -->
+      <div id="guide-view-c" class="guide-panel hidden space-y-3">
+        <div class="p-3 bg-red-50 rounded-2xl border border-red-200 text-xs text-red-950 leading-relaxed">
+          🚨 <strong>決定勝負的最大地雷（必做）：</strong><br>
+          如果表單網址是在 LINE 裡面發出的，直接點擊會開啟 LINE 自帶的內建瀏覽器，<strong>該瀏覽器不僅載入慢了 2 秒，而且無法執行任何外掛或書籤！</strong>
+        </div>
+
+        <div class="space-y-3 text-xs text-slate-700">
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">1</span>
+            <div>打開 iPhone 上的 <strong>LINE</strong> 應用程式。</div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">2</span>
+            <div>點擊左下角「<strong>主頁</strong>」 ➔ 點擊右上角「<strong>齒輪（設定）</strong>」。</div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-slate-50 rounded-2xl">
+            <span class="w-5 h-5 rounded-full bg-red-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">3</span>
+            <div>往下滑找到「<strong>LINE Labs</strong>」點進去。</div>
+          </div>
+          <div class="flex items-start gap-3 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900">
+            <span class="w-5 h-5 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center shrink-0 text-[10px]">4</span>
+            <div>
+              將「<strong>使用預設瀏覽器開啟連結</strong>」勾選為<strong>開啟</strong>。<br>
+              之後在 LINE 點到任何表單網址，iPhone 都會自動用最快、支援腳本的 Safari 開啟！
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- 浮動 Toast 提示通知元件 (iOS 風格) -->
+  <!-- ========================================== -->
+  <div id="ios-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-4 py-2.5 rounded-full text-xs font-semibold shadow-2xl flex items-center gap-2 backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none translate-y-4 z-50">
+    <span id="toast-icon">📋</span>
+    <span id="toast-text">已複製到剪貼簿</span>
+  </div>
+
+  <!-- 頁尾宣告資訊 -->
+  <footer class="max-w-3xl mx-auto w-full px-4 text-center text-xs text-slate-400 mt-6">
+    專為 鄭彩妙 客製化排班秒殺器 • 本地端純 JavaScript 運算安全無外流
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- 核心 JavaScript 邏輯 -->
+  <!-- ========================================== -->
+  <script>
+    /**
+     * 全域應用狀態 (App State)
+     * 用於同步當前使用者設定的姓名、排班內容、送出開關、延遲秒數與當前分頁
+     */
+    const appState = {
+      name: '鄭彩妙',                                               // 預設填表人姓名
+      scheduleText: '10/15-16休假、10/23休假、10/29-30休假',         // 預設填休字串
+      autoSubmit: true,                                             // 是否自動點選提交
+      delayMs: 100,                                                 // 自動提交安全延遲 (毫秒)
+      activeTab: 'tab-userscript',                                  // 當前選中的代碼模式 (Userscript / Bookmarklet / TextReplace)
+      scheduleTags: ['10/15-16休假', '10/23休假', '10/29-30休假']    // 結構化排班標籤陣列
+    };
+
+    /* -------------------------------------------------------------------------- */
+    /* DOM 節點引用                                                                */
+    /* -------------------------------------------------------------------------- */
+    // 基本設定輸入節點
+    const inputName = document.getElementById('input-name');
+    const inputSchedule = document.getElementById('input-schedule');
+    const toggleAutosubmit = document.getElementById('toggle-autosubmit');
+    const inputDelay = document.getElementById('input-delay');
+
+    // 程式碼顯示與複製節點
+    const codeOutput = document.getElementById('code-output');
+    const codeSummaryHint = document.getElementById('code-summary-hint');
+    const btnCopyCode = document.getElementById('btn-copy-code');
+    const copyBtnLabel = document.getElementById('copy-btn-label');
+
+    // 提示通知節點
+    const iosToast = document.getElementById('ios-toast');
+    const toastIcon = document.getElementById('toast-icon');
+    const toastText = document.getElementById('toast-text');
+
+    // 排班快選工具節點
+    const builderMonth = document.getElementById('builder-month');
+    const builderStartDay = document.getElementById('builder-start-day');
+    const builderEndDay = document.getElementById('builder-end-day');
+    const builderType = document.getElementById('builder-type');
+    const btnAddTag = document.getElementById('btn-add-tag');
+    const scheduleTagsContainer = document.getElementById('schedule-tags-container');
+    const btnClearSchedule = document.getElementById('btn-clear-schedule');
+
+    // 模擬測試沙盒節點
+    const btnRunSim = document.getElementById('btn-run-sim');
+    const btnResetSim = document.getElementById('btn-reset-sim');
+    const simField1 = document.getElementById('sim-field-1');
+    const simField2 = document.getElementById('sim-field-2');
+    const mockBox1 = document.getElementById('mock-box-1');
+    const mockBox2 = document.getElementById('mock-box-2');
+    const simSubmitBtn = document.getElementById('sim-submit-btn');
+    const simStatusIndicator = document.getElementById('sim-status-indicator');
+    const simSuccessCard = document.getElementById('sim-success-card');
+    const btnRetestSim = document.getElementById('btn-retest-sim');
+    const simTimerBadge = document.getElementById('sim-timer-badge');
+    const simTimerVal = document.getElementById('sim-timer-val');
+
+    /* -------------------------------------------------------------------------- */
+    /* UI 輔助函式：快顯通知 Toast                                                */
+    /* -------------------------------------------------------------------------- */
+    let toastTimer;
+    /**
+     * 觸發 iOS 膠囊風格 Toast 通知
+     * @param {string} message - 顯示文字
+     * @param {string} icon - 顯示 emoji 圖示
+     */
+    function triggerToast(message, icon = '📋') {
+      toastIcon.innerText = icon;
+      toastText.innerText = message;
+      iosToast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+      iosToast.classList.add('opacity-100', 'translate-y-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        iosToast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+        iosToast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2300);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 排班標籤渲染與管理                                                          */
+    /* -------------------------------------------------------------------------- */
+    /**
+     * 渲染排班標籤 (Tags) 到容器中，並綁定刪除事件
+     */
+    function renderScheduleTags() {
+      scheduleTagsContainer.innerHTML = '';
+      appState.scheduleTags.forEach((tag, idx) => {
+        const tagEl = document.createElement('span');
+        tagEl.className = 'inline-flex items-center gap-1 bg-white text-purple-900 border border-purple-200 text-xs px-2.5 py-1 rounded-lg font-semibold shadow-2xs';
+        tagEl.innerHTML = `
+          <span>${tag}</span>
+          <button type="button" class="text-slate-400 hover:text-red-500 ml-0.5" data-idx="${idx}" title="刪除此標籤">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        `;
+        // 單獨移除標籤並即時更新文字框與程式碼
+        tagEl.querySelector('button').addEventListener('click', () => {
+          appState.scheduleTags.splice(idx, 1);
+          appState.scheduleText = appState.scheduleTags.join('、');
+          inputSchedule.value = appState.scheduleText;
+          renderScheduleTags();
+          updateGeneratedCode();
+        });
+        scheduleTagsContainer.appendChild(tagEl);
+      });
+    }
+
+    // 點擊「加入」排班標籤按鈕
+    btnAddTag.addEventListener('click', () => {
+      const month = builderMonth.value;
+      const startDay = builderStartDay.value.trim();
+      const endDay = builderEndDay.value.trim();
+      const type = builderType.value;
+
+      if (!startDay) {
+        triggerToast('請輸入開始日期', '⚠️');
+        builderStartDay.focus();
+        return;
+      }
+
+      // 判斷是否為跨日排班
+      let dateString = '';
+      if (endDay && endDay !== startDay) {
+        dateString = `${month}/${startDay}-${endDay}${type}`;
+      } else {
+        dateString = `${month}/${startDay}${type}`;
+      }
+
+      // 推入陣列並更新文字框內容（自動使用全形頓號分隔）
+      appState.scheduleTags.push(dateString);
+      appState.scheduleText = appState.scheduleTags.join('、');
+      inputSchedule.value = appState.scheduleText;
+      builderStartDay.value = '';
+      builderEndDay.value = '';
+      renderScheduleTags();
+      updateGeneratedCode();
+      triggerToast(`已加入「${dateString}」`, '✨');
+    });
+
+    // 清空所有排班標籤
+    btnClearSchedule.addEventListener('click', () => {
+      appState.scheduleTags = [];
+      appState.scheduleText = '';
+      inputSchedule.value = '';
+      renderScheduleTags();
+      updateGeneratedCode();
+      triggerToast('已清空排班內容', '🗑️');
+    });
+
+    // 監聽手動編輯 textarea 事件，支援直接輸入並自動解析為標籤
+    inputSchedule.addEventListener('input', (e) => {
+      appState.scheduleText = e.target.value.trim();
+      if (appState.scheduleText) {
+        appState.scheduleTags = appState.scheduleText.split(/[、,，\n]+/).filter(Boolean);
+      } else {
+        appState.scheduleTags = [];
+      }
+      renderScheduleTags();
+      updateGeneratedCode();
+    });
+
+    // 監聽姓名欄位異動
+    inputName.addEventListener('input', (e) => {
+      appState.name = e.target.value.trim();
+      updateGeneratedCode();
+    });
+
+    // 監聽自動提交開關異動
+    toggleAutosubmit.addEventListener('change', (e) => {
+      appState.autoSubmit = e.target.checked;
+      updateGeneratedCode();
+    });
+
+    // 監聽送出延遲時間異動
+    inputDelay.addEventListener('input', (e) => {
+      appState.delayMs = parseInt(e.target.value, 10) || 100;
+      updateGeneratedCode();
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* 核心生成器：依據當前狀態生成對應方案的程式碼                               */
+    /* -------------------------------------------------------------------------- */
+    function updateGeneratedCode() {
+      const name = appState.name;
+      const schedule = appState.scheduleText;
+      const autoSubmit = appState.autoSubmit;
+      const delay = appState.delayMs;
+
+      let code = '';
+
+      // 方案 A：Userscripts 油猴腳本 (Tampermonkey / iOS Safari Userscripts)
+      if (appState.activeTab === 'tab-userscript') {
+        code = `// ==UserScript==
+// @name         排班填休極速自動秒殺 (鄭彩妙專屬版)
+// @namespace    https://docs.google.com/forms/
+// @version      2.0
+// @description  每個月20號16:00表單一開，0.1秒自動填妥姓名與填休內容並提交！
+// @author       FormSniper iOS
+// @match        https://docs.google.com/forms/*
+// @match        https://forms.gle/*
+// @run-at       document-end
+// @grant        none
+// ==/UserScript==
+
+(function() {
+  'use strict';
+  // 使用者自訂填寫參數
+  const myName = ${JSON.stringify(name)};
+  const mySchedule = ${JSON.stringify(schedule)};
+  const autoSubmit = ${autoSubmit};
+  const delayMs = ${delay};
+
+  /**
+   * 執行自動填表與點擊提交核心邏輯
+   */
+  function executeAutoFill() {
+    // 尋找 Google 表單內所有可能之單行文字框、多行文字框或 role="textbox" 之元素
+    const inputs = Array.from(document.querySelectorAll('input[type="text"], textarea, div[role="textbox"]'));
+    if (!inputs || inputs.length < 2) return false;
+
+    // 自動填寫第 1 題：姓名 (分發 input 與 change 事件以觸發 Google 表單內部資料綁定)
+    if (inputs[0]) {
+      inputs[0].value = myName;
+      inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+      inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 自動填寫第 2 題：填休日期與假別
+    if (inputs[1]) {
+      inputs[1].value = mySchedule;
+      inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+      inputs[1].dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 若啟用自動提交，延遲指定毫秒後點擊提交按鈕
+    if (autoSubmit) {
+      setTimeout(() => {
+        const buttons = document.querySelectorAll('div[role="button"], button');
+        for (let btn of buttons) {
+          const text = (btn.innerText || '').trim();
+          if (text.includes('提交') || text.includes('Submit') || text.includes('下一步')) {
+            btn.click();
+            break;
+          }
+        }
+      }, delayMs);
+    }
+    return true;
+  }
+
+  // 1. 頁面載入當下立即嘗試執行填寫
+  // 2. 若頁面元素尚未渲染完成，利用 MutationObserver 監聽 DOM 異動直到元素出現
+  if (!executeAutoFill()) {
+    const observer = new MutationObserver((mutations, obs) => {
+      if (executeAutoFill()) {
+        obs.disconnect(); // 填寫成功即刻停止監聽以節省資源
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    // 設定 3.5 秒超時保護機制
+    setTimeout(() => observer.disconnect(), 3500);
+  }
+})();`;
+        codeSummaryHint.innerHTML = `<svg class="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> <span><strong>最強全自動方案</strong>：安裝 Userscripts 外掛後貼上，20 號點開網址直接放著，0.1 秒內自動填完送出！</span>`;
+
+      // 方案 B：Bookmarklet 魔法書籤 (純瀏覽器書籤可執行的 JavaScript 偽協議字串)
+      } else if (appState.activeTab === 'tab-bookmarklet') {
+        const payloadName = JSON.stringify(name);
+        const payloadSchedule = JSON.stringify(schedule);
+        code = `javascript:(function(){const n=${payloadName},s=${payloadSchedule},as=${autoSubmit},dl=${delay};const ips=Array.from(document.querySelectorAll('input[type="text"],textarea,div[role="textbox"]'));if(ips[0]){ips[0].value=n;ips[0].dispatchEvent(new Event('input',{bubbles:true}));ips[0].dispatchEvent(new Event('change',{bubbles:true}));}if(ips[1]){ips[1].value=s;ips[1].dispatchEvent(new Event('input',{bubbles:true}));ips[1].dispatchEvent(new Event('change',{bubbles:true}));}if(as){setTimeout(()=>{const btns=document.querySelectorAll('div[role="button"],button');for(let b of btns){const t=(b.innerText||'').trim();if(t.indexOf('提交')!==-1||t.indexOf('Submit')!==-1||t.indexOf('下一步')!==-1){b.click();break;}}},dl);}})();`;
+        codeSummaryHint.innerHTML = `<svg class="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span><strong>免裝 App 方案</strong>：存為 Safari 書籤，表單打開後在網址列搜尋書籤點一下，瞬間填入送出。</span>`;
+
+      // 方案 C：iOS 鍵盤原生替代文字指引
+      } else {
+        code = `【iPhone 替代文字設定法 - 免寫代碼純鍵盤秒殺】
+
+1. 打開 iPhone「設定」➔「一般」➔「鍵盤」➔「替代文字」
+2. 點擊右上角「+」新增姓名快速碼：
+   • 字詞：${name}
+   • 輸入碼：11
+
+3. 再點右上角「+」新增排班快速碼：
+   • 字詞：${schedule}
+   • 輸入碼：22
+
+實戰操作（約2秒）：
+表單打開後，第1格點一下輸入「11」按空白鍵；第2格點一下輸入「22」按空白鍵，點送出！`;
+        codeSummaryHint.innerHTML = `<svg class="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span><strong>純內建備用法</strong>：利用鍵盤輸入碼 11 與 22，免手打中文姓名與日期符號。</span>`;
+      }
+
+      codeOutput.textContent = code;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 複製到剪貼簿功能 (含現代 Clipboard API 與舊版 execCommand 降級)             */
+    /* -------------------------------------------------------------------------- */
+    btnCopyCode.addEventListener('click', () => {
+      const textToCopy = codeOutput.textContent;
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          showCopySuccess();
+        }).catch(() => {
+          fallbackCopyText(textToCopy);
+        });
+      } else {
+        fallbackCopyText(textToCopy);
+      }
+    });
+
+    /**
+     * 剪貼簿降級方案 (建立隱藏 textarea 執行 document.execCommand('copy'))
+     * @param {string} text - 欲複製之文字內容
+     */
+    function fallbackCopyText(text) {
+      const tempArea = document.createElement('textarea');
+      tempArea.value = text;
+      tempArea.style.position = 'fixed';
+      tempArea.style.opacity = '0';
+      document.body.appendChild(tempArea);
+      tempArea.focus();
+      tempArea.select();
+      try {
+        const ok = document.execCommand('copy');
+        if (ok) showCopySuccess();
+        else triggerToast('請手動全選複製代碼', '⚠️');
+      } catch (err) {
+        triggerToast('請手動全選複製代碼', '⚠️');
+      }
+      document.body.removeChild(tempArea);
+    }
+
+    /**
+     * 複製成功之按鈕狀態視覺反饋
+     */
+    function showCopySuccess() {
+      copyBtnLabel.innerText = '已複製！';
+      btnCopyCode.classList.remove('bg-purple-600');
+      btnCopyCode.classList.add('bg-emerald-600');
+      triggerToast('專屬排班代碼已複製！可到 iPhone 設定', '🎉');
+      setTimeout(() => {
+        copyBtnLabel.innerText = '複製代碼';
+        btnCopyCode.classList.remove('bg-emerald-600');
+        btnCopyCode.classList.add('bg-purple-600');
+      }, 2000);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /* 分頁切換 (Tab Navigation) 事件監聽                                         */
+    /* -------------------------------------------------------------------------- */
+    document.querySelectorAll('.code-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.code-tab-btn').forEach(b => {
+          b.classList.remove('bg-white', 'text-purple-700', 'shadow-xs');
+          b.classList.add('text-slate-600');
+        });
+        btn.classList.add('bg-white', 'text-purple-700', 'shadow-xs');
+        btn.classList.remove('text-slate-600');
+        appState.activeTab = btn.dataset.tab;
+        updateGeneratedCode();
+      });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* 模擬器執行實測邏輯 (效能基準測試與視覺動態展示)                              */
+    /* -------------------------------------------------------------------------- */
+    function runBenchmarkSimulation() {
+      const startTime = performance.now();
+      simStatusIndicator.innerText = '⚡️ 腳本觸發中...';
+      simStatusIndicator.className = 'text-xs font-bold text-purple-600 animate-pulse';
+
+      simTimerBadge.classList.remove('hidden');
+      simTimerBadge.classList.add('flex');
+
+      // 步驟 1：30ms 模擬第 1 欄位（姓名）填寫與高亮動效
+      setTimeout(() => {
+        simField1.value = appState.name;
+        mockBox1.classList.add('flash-fill');
+        setTimeout(() => mockBox1.classList.remove('flash-fill'), 500);
+      }, 30);
+
+      // 步驟 2：60ms 模擬第 2 欄位（排班內容）填寫與高亮動效
+      setTimeout(() => {
+        simField2.value = appState.scheduleText;
+        mockBox2.classList.add('flash-fill');
+        setTimeout(() => mockBox2.classList.remove('flash-fill'), 500);
+      }, 60);
+
+      // 步驟 3：依據使用者設定之延遲時間模擬點擊提交
+      const delay = appState.delayMs;
+      if (appState.autoSubmit) {
+        setTimeout(() => {
+          simSubmitBtn.classList.add('scale-95', 'ring-4', 'ring-purple-300');
+          setTimeout(() => {
+            simSubmitBtn.classList.remove('scale-95', 'ring-4', 'ring-purple-300');
+            const endTime = performance.now();
+            const duration = ((endTime - startTime) / 1000).toFixed(2);
+            simTimerVal.innerText = duration;
+            simSuccessCard.classList.remove('hidden');
+            simStatusIndicator.innerText = `提交成功！耗時 ${duration} 秒`;
+            simStatusIndicator.className = 'text-xs font-bold text-emerald-600';
+          }, 120);
+        }, 80 + delay);
+      } else {
+        const endTime = performance.now();
+        const duration = ((endTime - startTime) / 1000).toFixed(2);
+        simTimerVal.innerText = duration;
+        simStatusIndicator.innerText = `已填妥！等待手動提交 (${duration}s)`;
+        simStatusIndicator.className = 'text-xs font-bold text-amber-600';
+      }
+    }
+
+    /**
+     * 重設模擬器回到初始狀態
+     */
+    function resetSimulationState() {
+      simField1.value = '';
+      simField2.value = '';
+      simSuccessCard.classList.add('hidden');
+      simTimerBadge.classList.add('hidden');
+      simTimerBadge.classList.remove('flex');
+      simStatusIndicator.innerText = '等待測試觸發...';
+      simStatusIndicator.className = 'text-xs font-medium text-slate-500';
+    }
+
+    btnRunSim.addEventListener('click', runBenchmarkSimulation);
+    btnResetSim.addEventListener('click', resetSimulationState);
+    btnRetestSim.addEventListener('click', resetSimulationState);
+    simSubmitBtn.addEventListener('click', () => {
+      simSuccessCard.classList.remove('hidden');
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* 教學步驟分頁切換                                                            */
+    /* -------------------------------------------------------------------------- */
+    document.querySelectorAll('.guide-tab-btn').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.guide-tab-btn').forEach(t => {
+          t.classList.remove('active', 'border-purple-600', 'text-purple-600');
+          t.classList.add('border-transparent', 'text-slate-500');
+        });
+        tab.classList.add('active', 'border-purple-600', 'text-purple-600');
+        tab.classList.remove('border-transparent', 'text-slate-500');
+
+        document.querySelectorAll('.guide-panel').forEach(panel => {
+          panel.classList.add('hidden');
+        });
+        const targetId = tab.dataset.target;
+        const targetPanel = document.getElementById(targetId);
+        if (targetPanel) targetPanel.classList.remove('hidden');
+      });
+    });
+
+    /* -------------------------------------------------------------------------- */
+    /* 頁面載入完成初始化                                                          */
+    /* -------------------------------------------------------------------------- */
+    window.addEventListener('DOMContentLoaded', () => {
+      renderScheduleTags();
+      updateGeneratedCode();
+    });
+  </script>
+</body>
+</html>
